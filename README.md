@@ -76,25 +76,48 @@ This creates 3 test users:
 - `yael` / `password123`
 - `moshe` / `password123`
 
-### Step 4: Start the Server
+### Step 4: Configure Environment Variables (Optional)
 
-**HTTP mode (development):**
+Create `.env` files for easier configuration:
+
+**Server (`server/.env`):**
+```env
+PORT=3001
+NODE_ENV=development
+JWT_SECRET=your-secret-key-change-in-production
+CLIENT_URL=http://localhost:5173
+HTTPS_ENABLED=true
+LOG_LEVEL=info
+```
+
+**Client (`.env` in root):**
+```env
+VITE_API_URL=https://localhost:3001/api
+```
+
+**Note:** `.env` files are automatically ignored by Git (for security).
+
+### Step 5: Start the Server
+
+**With .env file (recommended):**
 ```bash
 cd server
 npm start
 ```
 
-**HTTPS mode (recommended):**
+The server will automatically read `server/.env` and use `HTTPS_ENABLED=true` if set.
+
+**Without .env file (manual):**
 ```bash
 cd server
 HTTPS_ENABLED=true npm start
 ```
 
 The server will run on:
-- HTTP: `http://localhost:3001`
-- HTTPS: `https://localhost:3001`
+- HTTP: `http://localhost:3001` (if `HTTPS_ENABLED=false` or not set)
+- HTTPS: `https://localhost:3001` (if `HTTPS_ENABLED=true` in `.env`)
 
-### Step 5: Start the Client
+### Step 6: Start the Client
 
 Open a **new terminal** (keep server running):
 
@@ -102,9 +125,11 @@ Open a **new terminal** (keep server running):
 npm run dev
 ```
 
-The client will run on `http://localhost:5173` (or `https://localhost:5173` if server uses HTTPS).
+The client will run on `http://localhost:5173`.
 
-### Step 6: Access the Application
+**Note:** The client automatically reads `.env` file and uses `VITE_API_URL` if set. If not set, defaults to `https://localhost:3001/api`.
+
+### Step 7: Access the Application
 
 1. Open your browser
 2. Navigate to `http://localhost:5173` (or `https://localhost:5173`)
@@ -138,13 +163,18 @@ The client will run on `http://localhost:5173` (or `https://localhost:5173` if s
    npm run generate-cert
    ```
 
-2. הפעל עם HTTPS:
+2. צור/עדכן `server/.env`:
+   ```env
+   HTTPS_ENABLED=true
+   ```
+
+3. הפעל את השרת:
    ```bash
-   $env:HTTPS_ENABLED="true"
+   cd server
    npm start
    ```
 
-3. בדפדפן: לחץ "Advanced" → "Proceed to localhost"
+4. בדפדפן: לחץ "Advanced" → "Proceed to localhost" (זה נורמלי עם תעודות self-signed)
 
 ## 🔧 Design Choices
 

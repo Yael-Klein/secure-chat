@@ -1,7 +1,8 @@
 // Real API client for connecting to Node.js backend
 
-// Default to HTTP for development, use HTTPS only if explicitly configured
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+// Read API URL from environment variable (from .env file)
+// Default to HTTPS if not specified
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://localhost:3001/api";
 
 interface User {
   id: string;

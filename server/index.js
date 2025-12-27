@@ -1,3 +1,6 @@
+// Load environment variables from .env file (if exists)
+import "dotenv/config";
+
 import express from "express";
 import https from "https";
 import http from "http";
