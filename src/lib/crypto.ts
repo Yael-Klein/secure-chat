@@ -166,31 +166,8 @@ export async function decryptAESKey(
   return await importAESKey(decrypted);
 }
 
-// Hash password with PBKDF2 (for key derivation, not storage)
-export async function hashPassword(
-  password: string,
-  salt: Uint8Array
-): Promise<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
-
-  return await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: salt.buffer as ArrayBuffer,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    256
-  );
-}
+// Note: hashPassword was removed - server uses bcrypt for password hashing
+// This function was not used in the client-side code
 
 // Utility functions
 function arrayBufferToBase64(buffer: ArrayBuffer): string {

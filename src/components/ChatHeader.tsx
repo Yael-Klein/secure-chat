@@ -8,6 +8,7 @@ interface ChatHeaderProps {
   publicKey: string;
   onLogout: () => void;
   onRefresh: () => void;
+  selectedUser?: { id: string; username: string } | null;
 }
 
 export function ChatHeader({
@@ -15,6 +16,7 @@ export function ChatHeader({
   publicKey,
   onLogout,
   onRefresh,
+  selectedUser,
 }: ChatHeaderProps) {
   const [fingerprint, setFingerprint] = useState<string>("");
 
@@ -38,7 +40,11 @@ export function ChatHeader({
             </h1>
             <div className="flex items-center gap-2">
               <Users className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Broadcast Channel</span>
+              <span className="text-xs text-muted-foreground">
+                {selectedUser
+                  ? `Chat with ${selectedUser.username}`
+                  : "Select a contact to chat"}
+              </span>
             </div>
           </div>
         </div>

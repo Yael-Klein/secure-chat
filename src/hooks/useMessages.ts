@@ -7,7 +7,21 @@ import {
   decryptAESKey,
   importPublicKey,
 } from "@/lib/crypto";
-import * as api from "@/lib/mockApi";
+import * as api from "@/lib/api";
+
+// Cache for public keys to avoid re-importing them every time
+const publicKeyCache = new Map<string, CryptoKey>();
+
+// Get cached public key or import and cache it
+async function getCachedPublicKey(userId: string, publicKeyString: string): Promise<CryptoKey> {
+  if (publicKeyCache.has(userId)) {
+    return publicKeyCache.get(userId)!;
+  }
+  
+  const key = await importPublicKey(publicKeyString);
+  publicKeyCache.set(userId, key);
+  return key;
+}
 
 interface DecryptedMessage {
   id: string;
@@ -22,15 +36,17 @@ interface EncryptedMessage {
   id: string;
   senderId: string;
   senderUsername: string;
+  recipientId?: string | null; // null = broadcast
   encryptedContent: string;
   encryptedKey: string;
   iv: string;
-  timestamp: Date;
+  timestamp: string | Date;
 }
 
 export function useMessages(
   userId: string | undefined,
-  privateKey: CryptoKey | null
+  privateKey: CryptoKey | null,
+  recipientId: string | null = null // null = broadcast to all
 ) {
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,11 +96,33 @@ export function useMessages(
       for (const msg of encryptedMessages) {
         const decryptedMsg = await decryptSingleMessage(msg, privateKey);
         if (decryptedMsg) {
-          decrypted.push(decryptedMsg);
+          // Filter messages: if recipientId is set, only show messages between current user and recipient
+          if (recipientId) {
+            // Show messages FROM recipient TO current user
+            const isFromRecipientToMe = msg.senderId === recipientId && msg.recipientId === userId;
+            // Show messages FROM current user TO recipient
+            const isFromMeToRecipient = msg.senderId === userId && msg.recipientId === recipientId;
+            // Show messages FROM current user encrypted for themselves (sent messages)
+            const isMySentMessage = msg.senderId === userId && msg.recipientId === userId;
+            // Also show broadcast messages from recipient (for backward compatibility)
+            const isBroadcastFromRecipient = msg.senderId === recipientId && !msg.recipientId;
+            
+            if (isFromRecipientToMe || isFromMeToRecipient || isMySentMessage || isBroadcastFromRecipient) {
+              decrypted.push(decryptedMsg);
+            }
+          } else {
+            // Broadcast mode: show all messages
+            decrypted.push(decryptedMsg);
+          }
         }
       }
 
-      setMessages(decrypted);
+      // Remove duplicates and sort by timestamp
+      const uniqueMessages = Array.from(
+        new Map(decrypted.map((msg) => [msg.id, msg])).values()
+      ).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      
+      setMessages(uniqueMessages);
       if (encryptedMessages.length > 0) {
         lastMessageId.current =
           encryptedMessages[encryptedMessages.length - 1].id;
@@ -94,7 +132,7 @@ export function useMessages(
     } finally {
       setIsLoading(false);
     }
-  }, [privateKey, userId, decryptSingleMessage]);
+  }, [privateKey, userId, recipientId, decryptSingleMessage]);
 
   // Poll for new messages
   const pollForMessages = useCallback(async () => {
@@ -109,12 +147,36 @@ export function useMessages(
         for (const msg of newMessages) {
           const decryptedMsg = await decryptSingleMessage(msg, privateKey);
           if (decryptedMsg) {
-            decrypted.push(decryptedMsg);
+            // Filter messages: if recipientId is set, only show messages between current user and recipient
+            if (recipientId) {
+              // Show messages FROM recipient TO current user
+              const isFromRecipientToMe = msg.senderId === recipientId && msg.recipientId === userId;
+              // Show messages FROM current user TO recipient
+              const isFromMeToRecipient = msg.senderId === userId && msg.recipientId === recipientId;
+              // Show messages FROM current user encrypted for themselves (sent messages)
+              const isMySentMessage = msg.senderId === userId && msg.recipientId === userId;
+              // Also show broadcast messages from recipient (for backward compatibility)
+              const isBroadcastFromRecipient = msg.senderId === recipientId && !msg.recipientId;
+              
+              if (isFromRecipientToMe || isFromMeToRecipient || isMySentMessage || isBroadcastFromRecipient) {
+                decrypted.push(decryptedMsg);
+              }
+            } else {
+              // Broadcast mode: show all messages
+              decrypted.push(decryptedMsg);
+            }
           }
         }
 
         if (decrypted.length > 0) {
-          setMessages((prev) => [...prev, ...decrypted]);
+          setMessages((prev) => {
+            // Combine and remove duplicates, then sort
+            const combined = [...prev, ...decrypted];
+            const unique = Array.from(
+              new Map(combined.map((msg) => [msg.id, msg])).values()
+            ).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+            return unique;
+          });
           lastMessageId.current = newMessages[newMessages.length - 1].id;
         }
       }
@@ -128,13 +190,13 @@ export function useMessages(
     if (privateKey && userId) {
       loadHistory();
 
-      // Start long polling
+      // Start long polling (every 5 seconds)
       const poll = async () => {
         await pollForMessages();
-        pollingRef.current = window.setTimeout(poll, 2000);
+        pollingRef.current = window.setTimeout(poll, 5000);
       };
 
-      pollingRef.current = window.setTimeout(poll, 2000);
+      pollingRef.current = window.setTimeout(poll, 5000);
 
       return () => {
         if (pollingRef.current) {
@@ -142,13 +204,14 @@ export function useMessages(
         }
       };
     }
-  }, [privateKey, userId, loadHistory, pollForMessages]);
+  }, [privateKey, userId, recipientId, loadHistory, pollForMessages]);
 
   // Send encrypted message
   const sendEncryptedMessage = useCallback(
     async (
       content: string,
-      senderUsername: string
+      senderUsername: string,
+      targetRecipientId?: string | null
     ): Promise<{ success: boolean; error?: string }> => {
       if (!userId || !privateKey) {
         return { success: false, error: "Not authenticated" };
@@ -156,33 +219,80 @@ export function useMessages(
 
       setIsSending(true);
       try {
-        // Get all users to encrypt for (in a real app, you'd encrypt per-recipient)
         const users = await api.getUsers();
-
-        // For demo, we encrypt with a shared key approach
-        // In production, you'd encrypt the AES key for each recipient's public key
         const aesKey = await generateAESKey();
         const { ciphertext, iv } = await encryptMessage(content, aesKey);
 
-        // For demo, encrypt AES key with sender's own public key
-        // In production: encrypt for each recipient
-        const currentUser = users.find((u) => u.id === userId);
-        if (!currentUser) {
-          return { success: false, error: "User not found" };
+        if (targetRecipientId) {
+          // Direct message: send two copies - one for recipient, one for sender
+          const recipient = users.find((u) => u.id === targetRecipientId);
+          const sender = users.find((u) => u.id === userId);
+          
+          if (!recipient || !sender) {
+            return { success: false, error: "User not found" };
+          }
+
+          // Encrypt for recipient (using cached public key)
+          const recipientPublicKey = await getCachedPublicKey(recipient.id, recipient.publicKey);
+          const encryptedKeyForRecipient = await encryptAESKey(aesKey, recipientPublicKey);
+
+          // Send message for recipient
+          const result1 = await api.sendMessage({
+            senderId: userId,
+            senderUsername,
+            recipientId: targetRecipientId,
+            encryptedContent: ciphertext,
+            encryptedKey: encryptedKeyForRecipient,
+            iv,
+          });
+
+          // Encrypt for sender (so sender can see their own message, using cached public key)
+          const senderPublicKey = await getCachedPublicKey(sender.id, sender.publicKey);
+          const encryptedKeyForSender = await encryptAESKey(aesKey, senderPublicKey);
+
+          // Send message for sender
+          const result2 = await api.sendMessage({
+            senderId: userId,
+            senderUsername,
+            recipientId: userId, // Encrypted for sender
+            encryptedContent: ciphertext,
+            encryptedKey: encryptedKeyForSender,
+            iv,
+          });
+
+          return { success: result1.success && result2.success };
+        } else {
+          // Broadcast: encrypt for ALL users so everyone can decrypt
+          const sender = users.find((u) => u.id === userId);
+          if (!sender) {
+            return { success: false, error: "User not found" };
+          }
+
+          // Send message encrypted for each user (broadcast to all, using cached public keys)
+          const sendPromises = users.map(async (user) => {
+            try {
+              const userPublicKey = await getCachedPublicKey(user.id, user.publicKey);
+              const encryptedKeyForUser = await encryptAESKey(aesKey, userPublicKey);
+
+              return api.sendMessage({
+                senderId: userId,
+                senderUsername,
+                recipientId: null, // Broadcast
+                encryptedContent: ciphertext,
+                encryptedKey: encryptedKeyForUser,
+                iv,
+              });
+            } catch (error) {
+              console.error(`Failed to encrypt for user ${user.username}:`, error);
+              return { success: false, messageId: "" };
+            }
+          });
+
+          const results = await Promise.all(sendPromises);
+          const allSuccess = results.every((r) => r.success);
+          
+          return { success: allSuccess };
         }
-
-        const recipientPublicKey = await importPublicKey(currentUser.publicKey);
-        const encryptedKey = await encryptAESKey(aesKey, recipientPublicKey);
-
-        const result = await api.sendMessage({
-          senderId: userId,
-          senderUsername,
-          encryptedContent: ciphertext,
-          encryptedKey,
-          iv,
-        });
-
-        return { success: result.success };
       } catch (error) {
         console.error("Failed to send message:", error);
         return { success: false, error: "Failed to send message" };

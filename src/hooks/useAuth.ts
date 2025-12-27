@@ -5,7 +5,13 @@ import {
   exportPrivateKey,
   importPrivateKey,
 } from "@/lib/crypto";
-import * as api from "@/lib/mockApi";
+import * as api from "@/lib/api";
+import {
+  storePrivateKey,
+  getPrivateKey,
+  removePrivateKey,
+  clearAllPrivateKeys,
+} from "@/lib/storage";
 
 interface User {
   id: string;
@@ -36,19 +42,35 @@ export function useAuth() {
       try {
         const storedUser = localStorage.getItem("secure_msg_user");
         const storedToken = localStorage.getItem("secure_msg_token");
-        const storedPrivateKey = localStorage.getItem("secure_msg_private_key");
 
-        if (storedUser && storedToken && storedPrivateKey) {
+        if (storedUser && storedToken) {
           const user = JSON.parse(storedUser);
-          const privateKey = await importPrivateKey(storedPrivateKey);
+          // Try to get private key from IndexedDB (secure storage)
+          const storedPrivateKey = await getPrivateKey(user.id);
+          
+          // Fallback: check localStorage for migration (remove after migration)
+          const legacyPrivateKey = localStorage.getItem("secure_msg_private_key");
+          const privateKeyString = storedPrivateKey || legacyPrivateKey;
 
-          setAuthState({
-            user,
-            token: storedToken,
-            privateKey,
-            isAuthenticated: true,
-            isLoading: false,
-          });
+          if (privateKeyString) {
+            const privateKey = await importPrivateKey(privateKeyString);
+            
+            // Migrate from localStorage to IndexedDB if needed
+            if (legacyPrivateKey && !storedPrivateKey) {
+              await storePrivateKey(user.id, legacyPrivateKey);
+              localStorage.removeItem("secure_msg_private_key");
+            }
+
+            setAuthState({
+              user,
+              token: storedToken,
+              privateKey,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          } else {
+            setAuthState((prev) => ({ ...prev, isLoading: false }));
+          }
         } else {
           setAuthState((prev) => ({ ...prev, isLoading: false }));
         }
@@ -56,7 +78,6 @@ export function useAuth() {
         console.error("Failed to load session:", error);
         localStorage.removeItem("secure_msg_user");
         localStorage.removeItem("secure_msg_token");
-        localStorage.removeItem("secure_msg_private_key");
         setAuthState((prev) => ({ ...prev, isLoading: false }));
       }
     };
@@ -92,7 +113,9 @@ export function useAuth() {
           JSON.stringify(response.user)
         );
         localStorage.setItem("secure_msg_token", response.token);
-        localStorage.setItem("secure_msg_private_key", privateKeyString);
+        
+        // Store private key securely in IndexedDB
+        await storePrivateKey(response.user.id, privateKeyString);
 
         setAuthState({
           user: response.user,
@@ -117,30 +140,73 @@ export function useAuth() {
       password: string
     ): Promise<{ success: boolean; error?: string }> => {
       try {
+        console.log("login", username, password);
         const response = await api.login(username, password);
-
+        console.log("response", response);  
         if (!response.success || !response.user || !response.token) {
+          console.log("response.error", response.error);
           return { success: false, error: response.error };
         }
 
-        // Check for stored private key
-        const storedPrivateKey = localStorage.getItem("secure_msg_private_key");
-        if (!storedPrivateKey) {
-          return {
-            success: false,
-            error: "Private key not found. Please register again.",
-          };
-        }
-
-        const privateKey = await importPrivateKey(storedPrivateKey);
-
-        // Store session
+        // Store token first so it's available for authenticated requests
+        localStorage.setItem("secure_msg_token", response.token);
         localStorage.setItem(
           "secure_msg_user",
           JSON.stringify(response.user)
         );
-        localStorage.setItem("secure_msg_token", response.token);
 
+        // Check for stored private key in IndexedDB (secure storage)
+        let storedPrivateKey = await getPrivateKey(response.user.id);
+        
+        // Fallback: check localStorage for migration (remove after migration)
+        if (!storedPrivateKey) {
+          const legacyPrivateKey = localStorage.getItem("secure_msg_private_key");
+          if (legacyPrivateKey) {
+            storedPrivateKey = legacyPrivateKey;
+            // Migrate to IndexedDB
+            await storePrivateKey(response.user.id, legacyPrivateKey);
+            localStorage.removeItem("secure_msg_private_key");
+          }
+        }
+        
+        let privateKey: CryptoKey;
+        
+        if (!storedPrivateKey) {
+          console.log("storedPrivateKey not found - generating new key pair");
+          // Generate new key pair for users who don't have one (e.g., seeded users)
+          const keyPair = await generateKeyPair();
+          const publicKeyString = await exportPublicKey(keyPair.publicKey);
+          const privateKeyString = await exportPrivateKey(keyPair.privateKey);
+          
+          // Update the server with the new public key (token is now in localStorage)
+          const updateResponse = await api.updatePublicKey(publicKeyString);
+          if (!updateResponse.success || !updateResponse.user) {
+            console.error("Failed to update public key on server");
+            return {
+              success: false,
+              error: "Failed to generate keys. Please try again.",
+            };
+          }
+          
+          // Update the user object with the new public key
+          response.user = updateResponse.user;
+          // Update stored user with new public key
+          localStorage.setItem(
+            "secure_msg_user",
+            JSON.stringify(response.user)
+          );
+          
+          // Store the new private key securely in IndexedDB
+          await storePrivateKey(response.user.id, privateKeyString);
+          privateKey = keyPair.privateKey;
+          console.log("Generated and stored new key pair");
+        } else {
+          console.log("storedPrivateKey found");
+          privateKey = await importPrivateKey(storedPrivateKey);
+          console.log("privateKey loaded from secure storage");
+        }
+        console.log("response.token", response.token);
+        console.log("response.user", response.user);  
         setAuthState({
           user: response.user,
           token: response.token,
@@ -159,9 +225,17 @@ export function useAuth() {
   );
 
   const logout = useCallback(() => {
+    const userId = authState.user?.id;
+    
     localStorage.removeItem("secure_msg_user");
     localStorage.removeItem("secure_msg_token");
-    // Note: We keep the private key for future logins
+    
+    // Optionally remove private key from IndexedDB (user choice)
+    // For now, we keep it for future logins, but you can uncomment to clear:
+    // if (userId) {
+    //   removePrivateKey(userId).catch(console.error);
+    // }
+    
     setAuthState({
       user: null,
       token: null,
@@ -169,7 +243,7 @@ export function useAuth() {
       isAuthenticated: false,
       isLoading: false,
     });
-  }, []);
+  }, [authState.user?.id]);
 
   return {
     ...authState,
