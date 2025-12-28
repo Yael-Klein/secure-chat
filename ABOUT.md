@@ -45,27 +45,7 @@ secure-chat/
 - ✅ **סיסמאות** - bcrypt hashing
 - ✅ **מפתחות פרטיים** - IndexedDB (מאובטח יותר מ-localStorage)
 
-### איך להפעיל HTTPS?
-
-1. צור תעודות SSL:
-   ```bash
-   cd server
-   npm run generate-cert
-   ```
-
-2. צור/עדכן `server/.env`:
-   ```env
-   HTTPS_ENABLED=true
-   ```
-
-3. הפעל את השרת:
-   ```bash
-   cd server
-   npm start
-   ```
-
-4. בדפדפן: לחץ "Advanced" → "Proceed to localhost" (זה נורמלי עם תעודות self-signed)
-
+#
 ## 🔧 Design Choices
 
 ### Encryption Algorithms
