@@ -5,8 +5,6 @@ import express from "express";
 import https from "https";
 import http from "http";
 import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";

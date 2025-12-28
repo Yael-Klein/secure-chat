@@ -24,9 +24,6 @@ export function UserList({
 }: UserListProps) {
   // Filter out current user
   const otherUsers = users.filter((u) => u.id !== currentUserId);
-  
-  // Debug: log users
-  console.log("UserList - Total users:", users.length, "Other users:", otherUsers.length, "Current user ID:", currentUserId);
 
   if (isLoading) {
     return (

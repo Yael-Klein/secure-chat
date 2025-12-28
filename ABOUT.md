@@ -29,114 +29,44 @@ secure-chat/
 └── README.md
 ```
 
-## 🚀 Setup and Run Instructions
+## 🚀 Quick Start
 
-### Prerequisites
+**Prerequisites:** Node.js 18+ and npm
 
-- **Node.js** 18+ ([Download](https://nodejs.org/))
-- **npm** (comes with Node.js)
+1. **Install dependencies:**
+   ```bash
+   npm install          # Client
+   cd server && npm install && cd ..  # Server
+   ```
 
-### Step 1: Install Dependencies
+2. **Generate SSL certificates (optional, for HTTPS):**
+   ```bash
+   cd server && npm run generate-cert && cd ..
+   ```
 
-**Client (root directory):**
-```bash
-npm install
-```
+3. **Seed test users (optional):**
+   ```bash
+   cd server && npm run seed && cd ..
+   ```
+   Creates: `david`, `yael`, `moshe` (password: `password123`)
 
-**Server:**
-```bash
-cd server
-npm install
-```
+4. **Configure environment (optional):**
+   - Create `server/.env` with `HTTPS_ENABLED=true`
+   - Create `.env` (root) with `VITE_API_URL=https://localhost:3001/api`
 
-### Step 2: Generate SSL Certificates (Optional - for HTTPS)
+5. **Start server:**
+   ```bash
+   cd server && npm start
+   ```
 
-To enable HTTPS in development:
+6. **Start client (new terminal):**
+   ```bash
+   npm run dev
+   ```
 
-```bash
-cd server
-npm run generate-cert
-```
+7. **Access:** Open `http://localhost:5173` in your browser
 
-This creates self-signed SSL certificates in `server/certs/` valid for 1 year.
-
-**Note:** Browsers will show a security warning for self-signed certificates. Click "Advanced" → "Proceed to localhost".
-
-### Step 3: Seed Database (Optional)
-
-Create test users:
-
-```bash
-cd server
-npm run seed
-```
-
-This creates 3 test users:
-- `david` / `password123`
-- `yael` / `password123`
-- `moshe` / `password123`
-
-### Step 4: Configure Environment Variables (Optional)
-
-Create `.env` files for easier configuration:
-
-**Server (`server/.env`):**
-```env
-PORT=3001
-NODE_ENV=development
-JWT_SECRET=your-secret-key-change-in-production
-CLIENT_URL=http://localhost:5173
-HTTPS_ENABLED=true
-LOG_LEVEL=info
-```
-
-**Client (`.env` in root):**
-```env
-VITE_API_URL=https://localhost:3001/api
-```
-
-**Note:** `.env` files are automatically ignored by Git (for security).
-
-### Step 5: Start the Server
-
-**With .env file (recommended):**
-```bash
-cd server
-npm start
-```
-
-The server will automatically read `server/.env` and use `HTTPS_ENABLED=true` if set.
-
-**Without .env file (manual):**
-```bash
-cd server
-HTTPS_ENABLED=true npm start
-```
-
-The server will run on:
-- HTTP: `http://localhost:3001` (if `HTTPS_ENABLED=false` or not set)
-- HTTPS: `https://localhost:3001` (if `HTTPS_ENABLED=true` in `.env`)
-
-### Step 6: Start the Client
-
-Open a **new terminal** (keep server running):
-
-```bash
-npm run dev
-```
-
-The client will run on `http://localhost:5173`.
-
-**Note:** The client automatically reads `.env` file and uses `VITE_API_URL` if set. If not set, defaults to `https://localhost:3001/api`.
-
-### Step 7: Access the Application
-
-1. Open your browser
-2. Navigate to `http://localhost:5173` (or `https://localhost:5173`)
-3. If you see a security warning (for HTTPS), click "Advanced" → "Proceed to localhost"
-4. Register a new user or login with test credentials
-
-**For detailed step-by-step guide, see [GETTING_STARTED.md](GETTING_STARTED.md)**
+**📖 For detailed step-by-step instructions, see [GETTING_STARTED.md](GETTING_STARTED.md)**
 
 ---
 

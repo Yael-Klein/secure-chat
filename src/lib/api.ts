@@ -31,7 +31,6 @@ interface AuthResponse {
 
 // Get stored token from localStorage
 function getToken(): string | null {
-  console.log("getToken", localStorage.getItem("secure_msg_token"));
   return localStorage.getItem("secure_msg_token");
 }
 
@@ -88,13 +87,11 @@ export async function login(
   username: string,
   password: string
 ): Promise<AuthResponse> {
-  console.log("login", username, password);
   try {
     const response = await apiRequest<AuthResponse>("/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
-    console.log("response", response);
     return response;
   } catch (error) {
     return {
