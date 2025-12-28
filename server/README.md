@@ -342,7 +342,7 @@ PORT=3002 npm start
 
 ### CORS errors:
 - ודא ש-`CLIENT_URL` תואם לכתובת הלקוח
-- ברירת מחדל: `http://localhost:8080` או `https://localhost:8080`
+- ברירת מחדל: `http://localhost:5173` או `https://localhost:5173` (Vite default port)
 
 ---
 

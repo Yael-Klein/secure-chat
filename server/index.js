@@ -38,10 +38,10 @@ app.use(helmet());
 app.use(
   cors({
     origin: process.env.CLIENT_URL || [
-      "http://localhost:8080",
-      "https://localhost:8080",
-      "http://localhost:5173", // Vite default
+      "http://localhost:5173", // Vite default port
       "https://localhost:5173",
+      "http://localhost:8080", // Legacy support
+      "https://localhost:8080",
     ],
     credentials: true,
   })

@@ -59,23 +59,40 @@ cd ..
 
 ---
 
-## 🖥️ שלב 4: הפעלת השרת
+## ⚙️ שלב 4: הגדרת משתני סביבה (אופציונלי - מומלץ)
 
-### אופציה A: HTTP (פיתוח)
+צור קבצי `.env` להגדרה קלה יותר:
+
+### שרת (`server/.env`):
+צור קובץ `server/.env` עם התוכן הבא:
+```env
+PORT=3001
+NODE_ENV=development
+JWT_SECRET=your-secret-key-change-in-production
+CLIENT_URL=http://localhost:5173
+HTTPS_ENABLED=true
+LOG_LEVEL=info
+```
+
+### לקוח (`.env` בשורש):
+צור קובץ `.env` בתיקייה הראשית עם:
+```env
+VITE_API_URL=https://localhost:3001/api
+```
+
+**הערה:** קבצי `.env` לא יועלו ל-Git (לבטחון).
+
+**אם לא יצרת `.env`:** תוכל להגדיר משתני סביבה ידנית (ראה אופציה B למטה).
+
+---
+
+## 🖥️ שלב 5: הפעלת השרת
+
+### אופציה A: עם `.env` file (מומלץ)
+אם יצרת `server/.env` עם `HTTPS_ENABLED=true`:
+
 ```bash
 cd server
-npm start
-```
-
-**תראה:**
-```
-🌐 HTTP Server running on port 3001
-```
-
-### אופציה B: HTTPS (מומלץ)
-```bash
-cd server
-$env:HTTPS_ENABLED="true"
 npm start
 ```
 
@@ -84,11 +101,27 @@ npm start
 🔒 HTTPS Server running on port 3001
 ```
 
+### אופציה B: ללא `.env` file (ידני)
+אם לא יצרת `.env`, תוכל להגדיר משתנה סביבה ידנית:
+
+**HTTP:**
+```bash
+cd server
+npm start
+```
+
+**HTTPS:**
+```bash
+cd server
+$env:HTTPS_ENABLED="true"
+npm start
+```
+
 **הערה:** ודא שיצרת תעודות SSL בשלב 2!
 
 ---
 
-## 💻 שלב 5: הפעלת הלקוח
+## 💻 שלב 6: הפעלת הלקוח
 
 פתח **Terminal חדש** (השאר את השרת רץ):
 
@@ -106,7 +139,7 @@ npm run dev
 
 ---
 
-## 🌐 שלב 6: פתיחת האפליקציה
+## 🌐 שלב 7: פתיחת האפליקציה
 
 1. פתח את הדפדפן
 2. לך ל-`http://localhost:5173` (או `https://localhost:5173` אם השרת ב-HTTPS)
@@ -118,7 +151,7 @@ npm run dev
 
 ---
 
-## 👤 שלב 7: רישום/התחברות
+## 👤 שלב 8: רישום/התחברות
 
 ### אופציה A: התחברות עם משתמש קיים
 אם הרצת `npm run seed`:
@@ -140,7 +173,7 @@ npm run dev
 
 ---
 
-## 💬 שלב 8: שליחת הודעות
+## 💬 שלב 9: שליחת הודעות
 
 ### Broadcast (שידור לכל):
 1. אל תבחר משתמש מהרשימה
@@ -245,15 +278,27 @@ cd server
 npm run generate-cert
 ```
 
+### הגדרת HTTPS ב-`.env`:
+צור/עדכן `server/.env`:
+```env
+HTTPS_ENABLED=true
+```
+
 ### הפעלת HTTPS:
 ```bash
 cd server
-$env:HTTPS_ENABLED="true"
 npm start
 ```
 
+השרת יקרא אוטומטית את `HTTPS_ENABLED=true` מ-`.env`.
+
 ### עדכון הלקוח:
-הלקוח כבר מוגדר להשתמש ב-HTTPS אם השרת רץ ב-HTTPS.
+צור/עדכן `.env` (בשורש):
+```env
+VITE_API_URL=https://localhost:3001/api
+```
+
+הלקוח יקרא אוטומטית את `VITE_API_URL` מ-`.env`.
 
 ---
 
@@ -265,7 +310,7 @@ cd server
 npm install
 npm run generate-cert      # רק ל-HTTPS
 npm run seed              # אופציונלי
-$env:HTTPS_ENABLED="true" # רק ל-HTTPS
+# צור server/.env עם HTTPS_ENABLED=true (ראה שלב 4)
 npm start
 ```
 
