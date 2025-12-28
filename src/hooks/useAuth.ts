@@ -140,11 +140,8 @@ export function useAuth() {
       password: string
     ): Promise<{ success: boolean; error?: string }> => {
       try {
-        console.log("login", username, password);
-        const response = await api.login(username, password);
-        console.log("response", response);  
+        const response = await api.login(username, password); 
         if (!response.success || !response.user || !response.token) {
-          console.log("response.error", response.error);
           return { success: false, error: response.error };
         }
 
@@ -205,8 +202,6 @@ export function useAuth() {
           privateKey = await importPrivateKey(storedPrivateKey);
           console.log("privateKey loaded from secure storage");
         }
-        console.log("response.token", response.token);
-        console.log("response.user", response.user);  
         setAuthState({
           user: response.user,
           token: response.token,
