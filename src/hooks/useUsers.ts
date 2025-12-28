@@ -17,7 +17,6 @@ export function useUsers() {
     setError(null);
     try {
       const fetchedUsers = await api.getUsers();
-      console.log("useUsers - Loaded users:", fetchedUsers.length, fetchedUsers);
       setUsers(fetchedUsers);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load users");
