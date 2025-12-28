@@ -10,17 +10,41 @@ import {
 import * as api from "@/lib/api";
 
 // Cache for public keys to avoid re-importing them every time
-const publicKeyCache = new Map<string, CryptoKey>();
+// Store both the key and the raw public key string to detect changes
+const publicKeyCache = new Map<string, { raw: string; key: CryptoKey }>();
 
 // Get cached public key or import and cache it
 async function getCachedPublicKey(userId: string, publicKeyString: string): Promise<CryptoKey> {
-  if (publicKeyCache.has(userId)) {
-    return publicKeyCache.get(userId)!;
+  const cached = publicKeyCache.get(userId);
+  if (cached && cached.raw === publicKeyString) {
+    return cached.key;
   }
   
-  const key = await importPublicKey(publicKeyString);
-  publicKeyCache.set(userId, key);
-  return key;
+  try {
+    const key = await importPublicKey(publicKeyString);
+    publicKeyCache.set(userId, { raw: publicKeyString, key });
+    return key;
+  } catch (error) {
+    // Clear cache entry if import fails (might be stale/corrupted)
+    publicKeyCache.delete(userId);
+    console.error(
+      `Failed to import public key for user ${userId}. Length: ${publicKeyString?.length ?? "unknown"}. Preview: ${
+        typeof publicKeyString === "string" ? publicKeyString.slice(0, 80) : "not a string"
+      }`,
+      error
+    );
+    throw error;
+  }
+}
+
+// Validate that a public key string looks usable (no obvious placeholders)
+function isLikelyPlaceholderKey(publicKeyString: string | null | undefined): boolean {
+  if (!publicKeyString) return true;
+  // Placeholder patterns we saw in seed data
+  if (publicKeyString.includes("...")) return true;
+  // Too short to be a valid SPKI base64
+  if (publicKeyString.replace(/[\s\r\n-]/g, "").length < 100) return true;
+  return false;
 }
 
 interface DecryptedMessage {
@@ -217,6 +241,22 @@ export function useMessages(
         return { success: false, error: "Not authenticated" };
       }
 
+      // Direct message: fail fast if recipient key looks placeholder/invalid
+      if (targetRecipientId) {
+        const users = await api.getUsers();
+        const recipient = users.find((u) => u.id === targetRecipientId);
+        if (!recipient) {
+          return { success: false, error: "User not found" };
+        }
+        if (isLikelyPlaceholderKey(recipient.publicKey)) {
+          return {
+            success: false,
+            error:
+              "Recipient public key is invalid/placeholder. Ask them to login to refresh their keys.",
+          };
+        }
+      }
+
       setIsSending(true);
       try {
         const users = await api.getUsers();
@@ -233,8 +273,14 @@ export function useMessages(
           }
 
           // Encrypt for recipient (using cached public key)
-          const recipientPublicKey = await getCachedPublicKey(recipient.id, recipient.publicKey);
-          const encryptedKeyForRecipient = await encryptAESKey(aesKey, recipientPublicKey);
+          const recipientPublicKey = await getCachedPublicKey(
+            recipient.id,
+            recipient.publicKey
+          );
+          const encryptedKeyForRecipient = await encryptAESKey(
+            aesKey,
+            recipientPublicKey
+          );
 
           // Send message for recipient
           const result1 = await api.sendMessage({
@@ -247,7 +293,10 @@ export function useMessages(
           });
 
           // Encrypt for sender (so sender can see their own message, using cached public key)
-          const senderPublicKey = await getCachedPublicKey(sender.id, sender.publicKey);
+          const senderPublicKey = await getCachedPublicKey(
+            sender.id,
+            sender.publicKey
+          );
           const encryptedKeyForSender = await encryptAESKey(aesKey, senderPublicKey);
 
           // Send message for sender
@@ -270,6 +319,11 @@ export function useMessages(
 
           // Send message encrypted for each user (broadcast to all, using cached public keys)
           const sendPromises = users.map(async (user) => {
+            // Skip clearly invalid/placeholder keys instead of failing the whole broadcast
+            if (isLikelyPlaceholderKey(user.publicKey)) {
+              console.warn(`Skipping user ${user.username} due to invalid public key placeholder`);
+              return { success: false, messageId: "" };
+            }
             try {
               const userPublicKey = await getCachedPublicKey(user.id, user.publicKey);
               const encryptedKeyForUser = await encryptAESKey(aesKey, userPublicKey);
@@ -289,8 +343,16 @@ export function useMessages(
           });
 
           const results = await Promise.all(sendPromises);
-          const allSuccess = results.every((r) => r.success);
+          const validResults = results.filter((r) => r !== null);
+          const anySuccess = validResults.some((r) => r.success);
+          const allSuccess = validResults.every((r) => r.success);
           
+          if (!anySuccess) {
+            return {
+              success: false,
+              error: "No recipients have a valid public key. Ask them to login to refresh keys.",
+            };
+          }
           return { success: allSuccess };
         }
       } catch (error) {

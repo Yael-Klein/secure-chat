@@ -23,17 +23,24 @@ export async function exportPublicKey(key: CryptoKey): Promise<string> {
 
 // Import public key from base64 string
 export async function importPublicKey(keyData: string): Promise<CryptoKey> {
-  const binaryKey = base64ToArrayBuffer(keyData);
-  return await crypto.subtle.importKey(
-    "spki",
-    binaryKey,
-    {
-      name: "RSA-OAEP",
-      hash: "SHA-256",
-    },
-    true,
-    ["encrypt"]
-  );
+  try {
+    // Normalize the key data (remove whitespace, newlines, PEM headers)
+    const normalizedKeyData = normalizeBase64(keyData);
+    const binaryKey = base64ToArrayBuffer(normalizedKeyData);
+    return await crypto.subtle.importKey(
+      "spki",
+      binaryKey,
+      {
+        name: "RSA-OAEP",
+        hash: "SHA-256",
+      },
+      true,
+      ["encrypt"]
+    );
+  } catch (error) {
+    console.error("Failed to import public key:", error);
+    throw error;
+  }
 }
 
 // Export private key to base64 (for local storage)
@@ -44,17 +51,24 @@ export async function exportPrivateKey(key: CryptoKey): Promise<string> {
 
 // Import private key from base64
 export async function importPrivateKey(keyData: string): Promise<CryptoKey> {
-  const binaryKey = base64ToArrayBuffer(keyData);
-  return await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    {
-      name: "RSA-OAEP",
-      hash: "SHA-256",
-    },
-    true,
-    ["decrypt"]
-  );
+  try {
+    // Normalize the key data (remove whitespace, newlines, PEM headers)
+    const normalizedKeyData = normalizeBase64(keyData);
+    const binaryKey = base64ToArrayBuffer(normalizedKeyData);
+    return await crypto.subtle.importKey(
+      "pkcs8",
+      binaryKey,
+      {
+        name: "RSA-OAEP",
+        hash: "SHA-256",
+      },
+      true,
+      ["decrypt"]
+    );
+  } catch (error) {
+    console.error("Failed to import private key:", error);
+    throw error;
+  }
 }
 
 // Generate AES key for symmetric encryption
@@ -180,12 +194,56 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer as ArrayBuffer;
+  } catch (error) {
+    console.error(
+      "Invalid base64 input. Length:",
+      base64?.length ?? "unknown",
+      "Preview:",
+      typeof base64 === "string" ? base64.slice(0, 40) : "not a string"
+    );
+    throw error;
   }
-  return bytes.buffer as ArrayBuffer;
+}
+
+// Normalize base64 string (remove whitespace, newlines, and PEM headers if present)
+function normalizeBase64(base64: string): string {
+  if (!base64) return base64;
+
+  // Remove PEM headers if present (-----BEGIN ... -----END ...)
+  let normalized = base64.replace(/-----BEGIN[^-]+-----/g, "");
+  normalized = normalized.replace(/-----END[^-]+-----/g, "");
+  // Remove whitespace, newlines, and tabs
+  normalized = normalized.replace(/[\r\n\s]/g, "");
+  // Convert URL-safe base64 to standard
+  normalized = normalized.replace(/-/g, "+").replace(/_/g, "/");
+  // Pad to multiple of 4
+  const padLength = normalized.length % 4;
+  if (padLength) {
+    normalized += "=".repeat(4 - padLength);
+  }
+  // Basic validation: only base64 chars
+  const invalidMatch = normalized.match(/[^A-Za-z0-9+/=]/);
+  if (invalidMatch) {
+    const badChar = invalidMatch[0];
+    const badIndex = invalidMatch.index ?? -1;
+    console.error(
+      "Invalid base64 characters in input",
+      "char:", badChar,
+      "at index:", badIndex,
+      "length:", normalized.length,
+      "preview:", normalized.slice(Math.max(0, badIndex - 10), badIndex + 10)
+    );
+    throw new Error("Invalid base64 characters in input");
+  }
+
+  return normalized;
 }
 
 // Generate a fingerprint of a public key for verification

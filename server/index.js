@@ -56,9 +56,11 @@ const pollingLimiter = rateLimit({
 });
 
 // Strict rate limiting for authentication endpoints (prevent brute force)
+// In development we allow a much higher limit to avoid 429 while testing.
+const AUTH_LIMIT_MAX = process.env.NODE_ENV === "production" ? 5 : 1000;
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per window
+  max: AUTH_LIMIT_MAX,
   message: "Too many authentication attempts, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,

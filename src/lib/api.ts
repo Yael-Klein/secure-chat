@@ -49,17 +49,32 @@ async function apiRequest<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Request failed" }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    // Handle common SSL/self-signed certificate errors explicitly for dev
+    if (error instanceof TypeError) {
+      console.error(
+        "Network/SSL error while calling API. If using a self-signed certificate, open the API URL in the browser and accept the warning or set VITE_API_URL=http://localhost:3001/api for local dev.",
+        error
+      );
+      throw new Error("Network error - check SSL certificate or API availability");
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Request failed");
   }
-
-  return response.json();
 }
 
 // Register a new user
