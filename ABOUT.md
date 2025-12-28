@@ -29,46 +29,6 @@ secure-chat/
 └── README.md
 ```
 
-## 🚀 Quick Start
-
-**Prerequisites:** Node.js 18+ and npm
-
-1. **Install dependencies:**
-   ```bash
-   npm install          # Client
-   cd server && npm install && cd ..  # Server
-   ```
-
-2. **Generate SSL certificates (optional, for HTTPS):**
-   ```bash
-   cd server && npm run generate-cert && cd ..
-   ```
-
-3. **Seed test users (optional):**
-   ```bash
-   cd server && npm run seed && cd ..
-   ```
-   Creates: `david`, `yael`, `moshe` (password: `password123`)
-
-4. **Configure environment (optional):**
-   - Create `server/.env` with `HTTPS_ENABLED=true`
-   - Create `.env` (root) with `VITE_API_URL=https://localhost:3001/api`
-
-5. **Start server:**
-   ```bash
-   cd server && npm start
-   ```
-
-6. **Start client (new terminal):**
-   ```bash
-   npm run dev
-   ```
-
-7. **Access:** Open `http://localhost:5173` in your browser
-
-**📖 For detailed step-by-step instructions, see [GETTING_STARTED.md](GETTING_STARTED.md)**
-
----
 
 ## 📚 Additional Documentation
 
